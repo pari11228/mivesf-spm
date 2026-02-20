@@ -1,0 +1,11 @@
+node_modules
+spm-clean.zip
+deploy_temp/
+*.env*
+*.sql
+*.zip
+FILES-PACKAGE.txt
+FINAL-INSTALL-STEPS.txt
+QUICK-INSTALL.txt
+*.bak
+*.log
