@@ -1,0 +1,50 @@
+name: Deploy via cPanel UAPI
+
+on:
+  push:
+    branches: [ main ]
+
+jobs:
+  upload-and-extract:
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v4
+
+    - name: Build cleaned zip (PowerShell)
+      shell: pwsh
+      run: pwsh -NoProfile -ExecutionPolicy Bypass -File ./prepare_deploy.ps1
+
+    - name: Upload zip to cPanel via UAPI
+      env:
+        CPANEL_HOST: ${{ secrets.CPANEL_HOST }}
+        CPANEL_PORT: ${{ secrets.CPANEL_PORT }}
+        CPANEL_USER: ${{ secrets.CPANEL_USER }}
+        CPANEL_TOKEN: ${{ secrets.CPANEL_TOKEN }}
+        CPANEL_TARGET: ${{ secrets.CPANEL_TARGET }}
+      run: |
+        set -euo pipefail
+        URL="https://${CPANEL_HOST}:${CPANEL_PORT}/execute/Fileman/upload_files?dir=${CPANEL_TARGET}"
+        echo "Uploading to $URL"
+        RESPONSE=$(curl -sS -w '\n%{http_code}' -H "Authorization: cpanel ${CPANEL_USER}:${CPANEL_TOKEN}" -F "file-1=@spm-clean.zip" "$URL" --insecure)
+        BODY=$(echo "$RESPONSE" | sed '$d')
+        CODE=$(echo "$RESPONSE" | tail -n1)
+        echo "Response code: $CODE"
+        echo "$BODY"
+        if [ "$CODE" != "200" ]; then
+          echo "Upload failed" >&2
+          exit 1
+        fi
+
+    - name: Extract uploaded zip via UAPI
+      env:
+        CPANEL_HOST: ${{ secrets.CPANEL_HOST }}
+        CPANEL_PORT: ${{ secrets.CPANEL_PORT }}
+        CPANEL_USER: ${{ secrets.CPANEL_USER }}
+        CPANEL_TOKEN: ${{ secrets.CPANEL_TOKEN }}
+        CPANEL_TARGET: ${{ secrets.CPANEL_TARGET }}
+      run: |
+        set -euo pipefail
+        URL="https://${CPANEL_HOST}:${CPANEL_PORT}/execute/Fileman/extract_archive?dir=${CPANEL_TARGET}&file=spm-clean.zip"
+        echo "Requesting extract: $URL"
+        curl -sS -H "Authorization: cpanel ${CPANEL_USER}:${CPANEL_TOKEN}" "$URL" --insecure | jq
